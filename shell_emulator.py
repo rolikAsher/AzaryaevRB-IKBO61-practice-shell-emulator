@@ -9,11 +9,13 @@ from tkinter import scrolledtext
 class ShellEmulator:
     PROMPT_SUFFIX = "$ "
 
-    def __init__(self, root):
+    def __init__(self, root, vfs_path=None, startup_script=None):
         self.root = root
         self.user = self._safe_get_user()
         self.host = self._safe_get_hostname()
-        self.cwd = os.getcwd()
+        self.vfs_path = vfs_path
+        self.startup_script = startup_script
+        self.cwd = os.getcwd()  # Начальная директория
 
         # Настройка окна
         self.root.title(f"Эмулятор - [{self.user}@{self.host}]")
@@ -33,9 +35,19 @@ class ShellEmulator:
         btn = tk.Button(entry_frame, text="Enter", command=self._on_enter)
         btn.pack(side=tk.RIGHT)
 
+        # Отладочный вывод параметров
+        self._write_line("=== Отладка параметров запуска ===")
+        self._write_line(f"VFS Path: {self.vfs_path}")
+        self._write_line(f"Startup Script: {self.startup_script}")
+        self._write_line("=================================")
+
         self._write_line("Добро пожаловать в GUI-эмулятор шелла.")
         self._write_line("Введи 'help' для списка доступных команд.\n")
         self._print_prompt()
+
+        # Если есть стартовый скрипт — выполняем его
+        if self.startup_script:
+            self._run_startup_script()
 
     def _safe_get_user(self):
         try:
@@ -99,10 +111,19 @@ class ShellEmulator:
             self._write_line(f"Command not found: {cmd}")
 
     def cmd_ls(self, args):
+        # Реализация заглушки
         self._write_line(f"[Заглушка] Выполнение команды 'ls' с аргументами: {args}")
 
     def cmd_cd(self, args):
-        self._write_line(f"[Заглушка] Выполнение команды 'cd' с аргументами: {args}")
+        if not args:
+            self._write_line("cd: путь не указан")
+            return
+        try:
+            new_dir = args[0]
+            os.chdir(new_dir)
+            self.cwd = os.getcwd()
+        except Exception as e:
+            self._write_line(f"cd: {e}")
 
     def cmd_exit(self, args):
         self._write_line("Выход из эмулятора...")
@@ -111,13 +132,41 @@ class ShellEmulator:
     def cmd_help(self, args):
         self._write_line("Доступные команды:")
         self._write_line(" ls — заглушка для команды 'ls'")
-        self._write_line(" cd — заглушка для команды 'cd'")
+        self._write_line(" cd — смена директории")
         self._write_line(" exit — завершить эмулятор")
         self._write_line(" help — показать это сообщение")
 
+    def _run_startup_script(self):
+        if not os.path.exists(self.startup_script):
+            self._write_line(f"Стартовый скрипт не найден: {self.startup_script}")
+            return
+        self._write_line(f"\n=== Выполнение стартового скрипта: {self.startup_script} ===")
+        try:
+            with open(self.startup_script, "r", encoding="utf-8") as f:
+                for line in f:
+                    cmd_line = line.strip()
+                    if not cmd_line or cmd_line.startswith("#"):
+                        continue
+                    try:
+                        self._write_line(cmd_line)  # Эмуляция ввода
+                        self._process_input(cmd_line)
+                    except Exception:
+                        self._write_line(f"Ошибка в строке: {cmd_line}")
+                        continue
+            self._write_line(f"=== Скрипт выполнен ===\n")
+        except Exception as e:
+            self._write_line(f"Ошибка при выполнении скрипта: {e}")
+
 def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="GUI Shell Emulator")
+    parser.add_argument("--vfs", type=str, help="Путь к физическому расположению VFS")
+    parser.add_argument("--script", type=str, help="Путь к стартовому скрипту")
+    args = parser.parse_args()
+
     root = tk.Tk()
-    app = ShellEmulator(root)
+    app = ShellEmulator(root, vfs_path=args.vfs, startup_script=args.script)
     root.mainloop()
 
 if __name__ == "__main__":
